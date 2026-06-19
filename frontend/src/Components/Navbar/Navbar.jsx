@@ -3,14 +3,11 @@ import "./Navbar.css";
 import { assets } from "../../assets/frontend_assets/assets";
 import { Link, useNavigate } from "react-router-dom";
 import { StoreContext } from "../context/storeContext";
-// import { useDescope, useSession } from "@descope/react-sdk";
 
 const Navbar = () => {
   const [menu, setMenu] = useState("Home");
   const { getTotalCartAmount, token, setToken } = useContext(StoreContext);
   const navigate = useNavigate();
-  // const { isAuthenticated } = useSession();
-  // const { logout } = useDescope();
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -19,10 +16,11 @@ const Navbar = () => {
   };
 
   return (
-    <div className="navbar" style={{padding:'0, 100px'}}>
+    <div className="navbar">
       <Link to="/">
         <img src={assets.logo} alt="" className="logo" />
       </Link>
+
       <ul className="navbar-menu">
         <Link
           to="/"
@@ -31,6 +29,7 @@ const Navbar = () => {
         >
           Home
         </Link>
+
         <a
           href="#explore-services"
           onClick={() => setMenu("Services")}
@@ -38,6 +37,15 @@ const Navbar = () => {
         >
           Services
         </a>
+
+        <a
+          href="http://localhost:5174"
+          className={menu === "Provider" ? "active" : ""}
+          onClick={() => setMenu("Provider")}
+        >
+          Become a Provider
+        </a>
+
         <a
           href="#footer"
           onClick={() => setMenu("Contact Us")}
@@ -45,6 +53,7 @@ const Navbar = () => {
         >
           Contact Us
         </a>
+
         <Link
           to="/my-orders"
           onClick={() => setMenu("My Orders")}
@@ -53,6 +62,7 @@ const Navbar = () => {
           My Orders
         </Link>
       </ul>
+
       <div className="navbar-right">
         <div className="navbar-search-icon">
           <Link to="/cart">
@@ -60,19 +70,24 @@ const Navbar = () => {
           </Link>
           <div className={getTotalCartAmount() === 0 ? "" : "dot"}></div>
         </div>
+
         {token ? (
           <div className="navbar-profile">
             <img src={assets.profile_icon} alt="" />
+
             <ul className="nav-profile-dropdown">
-              <li onClick={() => navigate('/profile')}>
+              <li onClick={() => navigate("/profile")}>
                 <img src={assets.profile_icon} alt="" />
                 <p>My Profile</p>
               </li>
-              <li onClick={() => navigate('/my-orders')}>
+
+              <li onClick={() => navigate("/my-orders")}>
                 <img src={assets.bag_icon} alt="" />
                 <p>My Orders</p>
               </li>
+
               <hr />
+
               <li onClick={handleLogout}>
                 <img src={assets.logout_icon} alt="" />
                 <p>Logout</p>

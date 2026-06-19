@@ -61,7 +61,9 @@ CREATE TABLE IF NOT EXISTS orders (
     tracking_status VARCHAR(50),
     created_at DATETIME,
     updated_at DATETIME,
-    service_date VARCHAR(50)
+    service_date VARCHAR(50),
+    provider_id BIGINT,
+    otp_service_start VARCHAR(4)
 );
 
 -- Order Items Table
@@ -75,3 +77,22 @@ CREATE TABLE IF NOT EXISTS order_items (
     image VARCHAR(255),
     FOREIGN KEY (order_tbl_id) REFERENCES orders(id)
 );
+
+-- Providers Table
+CREATE TABLE IF NOT EXISTS providers (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
+    category VARCHAR(255),
+    experience_years INT,
+    rating DOUBLE DEFAULT 0.0,
+    is_approved BOOLEAN DEFAULT FALSE,
+    is_online BOOLEAN DEFAULT FALSE
+);
+
+-- Note: The orders table should be updated to include provider_id and otp_service_start.
+-- Since it's already created, we use ALTER TABLE.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider_id BIGINT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS otp_service_start VARCHAR(4);

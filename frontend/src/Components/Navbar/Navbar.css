@@ -136,3 +136,25 @@
     display: none;
   }
 }
+.navbar-menu a {
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  padding-bottom: 4px;
+}
+
+.navbar-menu a:hover,
+.navbar-menu .active {
+  color: #1a237e;
+  border-bottom: 2px solid #1a237e;
+}
+
+.navbar-menu {
+  display: flex;
+  list-style: none;
+  gap: 30px;
+  font-size: 17px;
+  color: #333;
+  align-items: center;
+}

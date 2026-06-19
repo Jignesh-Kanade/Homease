@@ -1,251 +1,306 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import axios from "axios";
-import "./Orders.css";
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import './Orders.css';
+
+const STATUS_FLOW = [
+  { id: 'service_requested', label: 'Requested',   color: '#3498db', bg: '#ebf5fb' },
+  { id: 'provider_assigned', label: 'Assigned',    color: '#f39c12', bg: '#fef9e7' },
+  { id: 'out_for_service',   label: 'On The Way',  color: '#e67e22', bg: '#fef5e7' },
+  { id: 'service_started',   label: 'In Progress', color: '#16a085', bg: '#e8f8f5' },
+  { id: 'service_completed', label: 'Completed',   color: '#27ae60', bg: '#eafaf1' },
+  { id: 'cancelled',         label: 'Cancelled',   color: '#e74c3c', bg: '#fdedec' },
+];
+
+const getCfg = (id) =>
+  STATUS_FLOW.find(s => s.id === id) || { label: id||'Unknown', color: '#666', bg: '#f4f4f4' };
+
+const fmt = (ds) => {
+  if (!ds) return 'N/A';
+  return new Date(ds).toLocaleDateString('en-IN',
+    { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+const parseHistory = (raw) => {
+  try { return JSON.parse(raw || '[]'); } catch { return []; }
+};
 
 const Orders = ({ url }) => {
-  const [orders, setOrders] = useState([]);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [statusNote, setStatusNote] = useState('');
+  const [orders, setOrders]           = useState([]);
+  const [selected, setSelected]       = useState(null);
+  const [filter, setFilter]           = useState('all');
+  const [cancelNote, setCancelNote]   = useState('');
+  const [cancelling, setCancelling]   = useState(false);
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
+  useEffect(() => { fetchOrders(); }, []);
 
   const fetchOrders = async () => {
     try {
-      const response = await axios.get(`${url}/api/orders`);
-      setOrders(response.data);
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-    }
+      const res = await axios.get(`${url}/api/orders`);
+      setOrders(res.data);
+    } catch (e) { console.error('Error fetching orders:', e); }
   };
 
-  const updateStatus = async (id, newStatus) => {
+  // Admin's ONLY action: cancel an unstarted order
+  const cancelOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to cancel this order?')) return;
+    setCancelling(true);
     try {
-      const response = await axios.put(
-        `${url}/api/orders/${id}/status`,
-        { status: newStatus }
-      );
-      if (response.status === 200) {
-        setOrders((prevOrders) =>
-          prevOrders.map((order) =>
-            order._id === id ? { ...order, status: newStatus } : order
-          )
-        );
-      }
-    } catch (error) {
-      console.error(
-        "Error updating status:",
-        error.response?.data || error.message
-      );
-    }
+      await axios.put(`${url}/api/orders/${orderId}/cancel`,
+        { notes: cancelNote || 'Cancelled by admin.' });
+      alert('Order cancelled.');
+      setCancelNote('');
+      fetchOrders();
+      setSelected(prev => prev ? { ...prev, trackingStatus: 'cancelled' } : null);
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to cancel order.');
+    } finally { setCancelling(false); }
   };
 
-  const updateTrackingStatus = async (id, trackingStatus) => {
-    // If id passed is undefined, try to fallback to selectedOrder id
-    const orderId = id || (selectedOrder ? (selectedOrder._id || selectedOrder.id) : null);
-
-    if (!orderId) {
-      console.error("Order ID is missing for update");
-      return;
-    }
-
-    try {
-      const response = await axios.put(
-        `${url}/api/orders/${orderId}/status`,
-        { trackingStatus, notes: statusNote || `Order status updated to ${trackingStatus}` }
-      );
-      if (response.status === 200) {
-        setOrders((prevOrders) =>
-          prevOrders.map((order) =>
-            (order._id === orderId || order.id === orderId) ? { ...order, trackingStatus } : order
-          )
-        );
-        setStatusNote('');
-        if (selectedOrder && (selectedOrder._id === orderId || selectedOrder.id === orderId)) {
-          // Merge response data to keep other fields but update what changed
-          setSelectedOrder(prev => ({ ...prev, ...response.data, trackingStatus }));
-        }
-      }
-    } catch (error) {
-      console.error(
-        "Error updating tracking status:",
-        error.response?.data || error.message
-      );
-    }
-  };
-
-  const openOrderDetails = (order) => {
-    setSelectedOrder(order);
-    setStatusNote('');
-  };
-
-  const closeOrderDetails = () => {
-    setSelectedOrder(null);
-    setStatusNote('');
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+  const filtered = filter === 'all'
+    ? orders
+    : orders.filter(o => o.trackingStatus === filter);
 
   return (
     <div className="orders">
-      <h2>Orders</h2>
-      {orders.length === 0 ? (
-        <p>No orders found</p>
+      {/* Header */}
+      <div className="orders-page-header">
+        <div>
+          <h2>Service Orders</h2>
+          <p>View all bookings. Providers manage status. You can cancel unstarted orders.</p>
+        </div>
+        <div className="admin-role-badge">
+          🛡️ <span>Admin — View &amp; Cancel Only</span>
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="orders-filter-tabs">
+        <button className={`filter-tab ${filter==='all'?'active':''}`}
+          onClick={() => setFilter('all')}>All ({orders.length})</button>
+        {STATUS_FLOW.map(s => {
+          const count = orders.filter(o => o.trackingStatus === s.id).length;
+          if (!count) return null;
+          return (
+            <button key={s.id}
+              className={`filter-tab ${filter===s.id?'tab-active':''}`}
+              style={filter===s.id
+                ? { backgroundColor: s.color, borderColor: s.color, color: '#fff' }
+                : { borderColor: s.color, color: s.color }}
+              onClick={() => setFilter(s.id)}>
+              {s.label} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <div className="no-orders-msg">No orders found.</div>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Date</th>
-              <th>Services</th>
-              <th>Customer</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order._id || order.id}>
-                <td>
-                  <span className={`tracking-status ${order.trackingStatus || 'order_placed'}`}>
-                    {(order.trackingStatus || 'order_placed').replace(/_/g, ' ').toUpperCase()}
-                  </span>
-                </td>
-                <td>
-                  {order.serviceDate || (order.userDetails ? order.userDetails.serviceDate : "N/A")}
-                </td>
-                <td>
-                  {(order.orderItems || order.services || []).length > 0
-                    ? (order.orderItems || order.services)
-                      .map((item) =>
-                        item.name || item.serviceId || "Unknown"
-                      )
-                      .join(", ")
-                    : "No Services"}
-                </td>
-                <td>{`${order.firstName || order.userDetails?.firstName || "N/A"} ${order.lastName || order.userDetails?.lastName || ""
-                  }`}</td>
-                <td>{order.email || order.userDetails?.email || "N/A"}</td>
-                <td>{order.phone || order.userDetails?.phone || "N/A"}</td>
-                <td>
-                  <button
-                    className="view-details-btn"
-                    onClick={() => openOrderDetails(order)}
-                  >
-                    View Details
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="orders-table-wrap">
+          <table>
+            <thead><tr>
+              <th>Status</th><th>Order #</th><th>Service Date</th>
+              <th>Services</th><th>Customer</th><th>Phone</th>
+              <th>Provider</th><th>Rating</th><th>Amount</th><th>Actions</th>
+            </tr></thead>
+            <tbody>
+              {filtered.map(order => {
+                const cfg = getCfg(order.trackingStatus);
+                return (
+                  <tr key={order.id}
+                    className={order.trackingStatus==='service_requested'?'needs-action-row':''}>
+                    <td>
+                      <span className="status-pill"
+                        style={{ background: cfg.bg, color: cfg.color, borderColor: cfg.color+'44' }}>
+                        {order.trackingStatus === 'service_requested' && (
+                          <span className="pulse-dot"/>
+                        )}
+                        {cfg.label}
+                      </span>
+                    </td>
+                    <td className="id-cell">#{order.orderId}</td>
+                    <td>{order.serviceDate || '—'}</td>
+                    <td>{(order.orderItems||[]).map(i=>i.name||i.serviceId).join(', ')||'—'}</td>
+                    <td>{`${order.firstName||''} ${order.lastName||''}`}</td>
+                    <td>{order.phone||'—'}</td>
+                    <td>
+                      {order.provider
+                        ? <span className="provider-pill">✓ {order.provider.name}</span>
+                        : <span className="no-provider">Unassigned</span>}
+                    </td>
+                    <td>
+                      {order.ratingSubmitted
+                        ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+                            ⭐ {order.providerRating}/5
+                          </span>
+                        : <span style={{ color: '#ccc', fontSize: '12px' }}>Not rated</span>}
+                    </td>
+                    <td><strong>₹{order.amount||0}</strong></td>
+                    <td>
+                      <button className="view-btn" onClick={() => { setSelected(order); setCancelNote(''); }}>
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {selectedOrder && (
-        <div className="order-modal-overlay">
-          <div className="order-modal">
-            <button className="close-button" onClick={closeOrderDetails}>&times;</button>
-            <h2>Order #{selectedOrder.orderId}</h2>
+      {/* Detail Modal */}
+      {selected && (
+        <div className="modal-overlay" onClick={() => setSelected(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <button className="close-btn" onClick={() => setSelected(null)}>&times;</button>
 
-            <div className="order-details-grid">
-              <div className="order-info-section">
-                <h3>Order Information</h3>
-                <p><strong>Order Date:</strong> {formatDate(selectedOrder.createdAt)}</p>
-                <p><strong>Service Date:</strong> {selectedOrder.serviceDate || selectedOrder.userDetails?.serviceDate || "N/A"}</p>
-                <p><strong>Amount:</strong> ₹{selectedOrder.amount}</p>
+            <div className="modal-top">
+              <div>
+                <h2>Order #{selected.orderId}</h2>
+                <span className="placed-date">Placed: {fmt(selected.createdAt)}</span>
               </div>
+              <span className="status-pill large"
+                style={{ background: getCfg(selected.trackingStatus).bg,
+                  color: getCfg(selected.trackingStatus).color }}>
+                {getCfg(selected.trackingStatus).label}
+              </span>
+            </div>
 
-              <div className="customer-info-section">
-                <h3>Customer Information</h3>
-                <p><strong>Name:</strong> {selectedOrder.firstName || selectedOrder.userDetails?.firstName} {selectedOrder.lastName || selectedOrder.userDetails?.lastName}</p>
-                <p><strong>Email:</strong> {selectedOrder.email || selectedOrder.userDetails?.email}</p>
-                <p><strong>Phone:</strong> {selectedOrder.phone || selectedOrder.userDetails?.phone}</p>
-                <p><strong>Address:</strong> {selectedOrder.street || selectedOrder.userDetails?.street}, {selectedOrder.city || selectedOrder.userDetails?.city}, {selectedOrder.state || selectedOrder.userDetails?.state} - {selectedOrder.pincode || selectedOrder.userDetails?.pincode}</p>
+            {/* Progress bar (read-only) */}
+            <div className="progress-section">
+              <p className="progress-label">Service Progress</p>
+              <div className="progress-track">
+                {STATUS_FLOW.filter(s=>s.id!=='cancelled').map((s, i, arr) => {
+                  const curIdx = arr.findIndex(x => x.id === selected.trackingStatus);
+                  const done = i <= curIdx; const active = i === curIdx;
+                  return (
+                    <React.Fragment key={s.id}>
+                      <div className="p-step">
+                        <div className="p-dot"
+                          style={done ? { background: s.color,
+                            boxShadow: active ? `0 0 0 4px ${s.color}33` : 'none' } : {}} />
+                        <span className="p-label" style={done ? { color: s.color } : {}}>
+                          {s.label}
+                        </span>
+                      </div>
+                      {i < arr.length-1 && (
+                        <div className="p-line"
+                          style={done && i < curIdx ? { background: s.color } : {}} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+              <p className="progress-note">
+                ℹ️ All status changes after order placement are managed by the assigned provider.
+              </p>
+            </div>
+
+            {/* Info grid */}
+            <div className="info-grid">
+              <div className="info-card">
+                <h3>Order Info</h3>
+                <p><b>Order Date:</b> {fmt(selected.createdAt)}</p>
+                <p><b>Service Date:</b> {selected.serviceDate||'N/A'}</p>
+                <p><b>Amount:</b> ₹{selected.amount}</p>
+                {selected.paymentId && <p><b>Payment ID:</b> <code>{selected.paymentId}</code></p>}
+                {selected.ratingSubmitted && (
+                  <p><b>Rating:</b> ⭐ {selected.providerRating}/5
+                    {selected.ratingComment && ` — "${selected.ratingComment}"`}
+                  </p>
+                )}
+              </div>
+              <div className="info-card">
+                <h3>Customer</h3>
+                <p><b>Name:</b> {selected.firstName} {selected.lastName}</p>
+                <p><b>Email:</b> {selected.email}</p>
+                <p><b>Phone:</b> {selected.phone}</p>
+                <p><b>Address:</b> {[selected.street,selected.city,
+                  selected.state,selected.pincode].filter(Boolean).join(', ')}</p>
               </div>
             </div>
 
-            <div className="services-section">
-              <h3>Services Ordered</h3>
-              <ul className="services-list">
-                {(selectedOrder.orderItems || selectedOrder.services || []).length > 0 ?
-                  (selectedOrder.orderItems || selectedOrder.services).map((item, index) => (
-                    <li key={index}>{item.name || item.serviceId || "Unknown Service"}</li>
-                  ))
-                  : <li>No services found</li>
-                }
+            {/* Services */}
+            <div className="detail-section">
+              <h3>Services</h3>
+              <ul className="svc-list">
+                {(selected.orderItems||[]).length > 0
+                  ? (selected.orderItems).map((it,i) => <li key={i}>{it.name||it.serviceId}</li>)
+                  : <li>No services found</li>}
               </ul>
             </div>
 
-            <div className="tracking-update-section">
-              <h3>Update Tracking Status</h3>
-              <div className="tracking-form">
-                <div className="status-options">
-                  <div className="status-option-row">
-                    {['order_placed', 'confirmed', 'processing', 'dispatched'].map(status => (
-                      <button
-                        key={status}
-                        className={`status-btn ${selectedOrder.trackingStatus === status ? 'active' : ''}`}
-                        onClick={() => updateTrackingStatus(selectedOrder._id || selectedOrder.id, status)}
-                      >
-                        {status.replace(/_/g, ' ').toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="status-option-row">
-                    {['out_for_delivery', 'delivered', 'cancelled'].map(status => (
-                      <button
-                        key={status}
-                        className={`status-btn ${selectedOrder.trackingStatus === status ? 'active' : ''}`}
-                        onClick={() => updateTrackingStatus(selectedOrder._id || selectedOrder.id, status)}
-                      >
-                        {status.replace(/_/g, ' ').toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="status-notes">
-                  <label htmlFor="status-note">Add a note with this status update:</label>
-                  <textarea
-                    id="status-note"
-                    value={statusNote}
-                    onChange={(e) => setStatusNote(e.target.value)}
-                    placeholder="Optional: Add details about this status change"
-                    rows={3}
-                  ></textarea>
+            {/* Provider */}
+            {selected.provider && (
+              <div className="detail-section provider-detail">
+                <h3>👤 Assigned Provider</h3>
+                <p><b>Name:</b> {selected.provider.name}</p>
+                <p><b>Category:</b> {selected.provider.category}</p>
+                {selected.provider.phone && <p><b>Phone:</b> {selected.provider.phone}</p>}
+                {selected.provider.rating > 0 && (
+                  <p><b>Rating:</b> ⭐ {selected.provider.rating}</p>
+                )}
+              </div>
+            )}
+
+            {/* Tracking history */}
+            {parseHistory(selected.trackingHistory).length > 0 && (
+              <div className="detail-section">
+                <h3>Service History</h3>
+                <div className="timeline">
+                  {parseHistory(selected.trackingHistory).map((h,i) => {
+                    const cfg = getCfg(h.status);
+                    return (
+                      <div key={i} className="tl-item">
+                        <div className="tl-dot" style={{ background: cfg.color }} />
+                        <div className="tl-body">
+                          <div className="tl-date">{h.timestamp}</div>
+                          <div className="tl-status" style={{ color: cfg.color }}>{cfg.label}</div>
+                          {h.notes && <div className="tl-notes">{h.notes}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="tracking-history-section">
-              <h3>Tracking History</h3>
-              {selectedOrder.trackingHistory && selectedOrder.trackingHistory.length > 0 ? (
-                <div className="tracking-timeline">
-                  {selectedOrder.trackingHistory.map((entry, index) => (
-                    <div key={index} className="timeline-item">
-                      <div className="timeline-marker"></div>
-                      <div className="timeline-content">
-                        <div className="timeline-date">{formatDate(entry.timestamp)}</div>
-                        <div className="timeline-status">{entry.status.replace(/_/g, ' ').toUpperCase()}</div>
-                        <div className="timeline-notes">{entry.notes}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p>No tracking history available</p>
-              )}
-            </div>
+            {/* Admin cancel — only if not started/completed */}
+            {!['service_started','service_completed','cancelled']
+              .includes(selected.trackingStatus) && (
+              <div className="cancel-section">
+                <h3>⚠️ Cancel Order</h3>
+                <p>You can cancel this order since it hasn't started yet.
+                   The provider will be notified.</p>
+                <textarea
+                  placeholder="Reason for cancellation (optional)"
+                  value={cancelNote}
+                  onChange={e => setCancelNote(e.target.value)}
+                  rows={2}
+                  className="cancel-note"
+                />
+                <button
+                  className="cancel-btn"
+                  disabled={cancelling}
+                  onClick={() => cancelOrder(selected.id)}>
+                  {cancelling ? 'Cancelling…' : '✕ Cancel This Order'}
+                </button>
+              </div>
+            )}
+
+            {selected.trackingStatus === 'cancelled' && (
+              <div className="cancelled-note">✕ This order has been cancelled.</div>
+            )}
+            {selected.trackingStatus === 'service_completed' && (
+              <div className="completed-note">
+                ✅ Service completed.
+                {selected.ratingSubmitted
+                  ? ` Customer rated: ⭐ ${selected.providerRating}/5`
+                  : ' Awaiting customer rating.'}
+              </div>
+            )}
           </div>
         </div>
       )}

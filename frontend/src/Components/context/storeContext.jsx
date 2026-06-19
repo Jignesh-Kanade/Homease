@@ -1,63 +1,68 @@
 import { createContext, useEffect, useState } from "react";
 import axios from "axios";
 
-// import { service_list } from "../assets/assets";
-
 export const StoreContext = createContext(null);
 
 const StoreContextProvider = (props) => {
-  const [cartItems, setCartItems] = useState({}); //manage cart
+  const [cartItems, setCartItems] = useState({});
   const url = "http://localhost:8080";
   const [token, setToken] = useState("");
   const [service_list, setServiceList] = useState([]);
 
   const clearCart = async () => {
-    setCartItems({}); // Clear the cart on the frontend
+    setCartItems({});
     if (token) {
-      await axios.post(`${url}/api/cart/clear`, {}, { headers: { token } }); // Clear the cart on the backend
+      await axios.post(`${url}/api/cart/clear`, {}, { headers: { token } });
     }
   };
 
   const addToCart = async (itemId) => {
-    //if user is adding the service first time entry will be created
     if (!cartItems[itemId]) {
       setCartItems((prev) => ({ ...prev, [itemId]: 1 }));
     } else {
       setCartItems((prev) => ({ ...prev, [itemId]: prev[itemId] + 1 }));
     }
     if (token) {
-      await axios.post(
-        url + "/api/cart/add",
-        { itemId },
-        { headers: { token } }
-      );
+      await axios.post(url + "/api/cart/add", { itemId }, { headers: { token } });
     }
   };
 
   const removeFromCart = async (itemId) => {
-    //if user is removing the service first time entry will be deleted
     setCartItems((prev) => ({ ...prev, [itemId]: prev[itemId] - 1 }));
     if (token) {
-      await axios.post(
-        url + "/api/cart/remove",
-        { itemId },
-        { headers: { token } }
-      );
+      await axios.post(url + "/api/cart/remove", { itemId }, { headers: { token } });
     }
   };
 
   const getTotalCartAmount = () => {
-    //cart amount total function
-    let totalAmont = 0;
+    let total = 0;
     for (const item in cartItems) {
       if (cartItems[item] > 0) {
-        let itemInfo = service_list.find((product) => (product._id || product.id) === item);
-        if (itemInfo) {
-          totalAmont += itemInfo.price * cartItems[item];
-        }
+        const info = service_list.find(
+          (s) => (s._id || s.id) === item
+        );
+        if (info) total += info.price * cartItems[item];
       }
     }
-    return totalAmont;
+    return total;
+  };
+
+  // ── NEW: Build services array for order payload ───────────────────────────
+  // Returns [{ id, name, category, price, quantity }] for every item in cart.
+  // This is what PlaceOrder sends to the backend so category is always present.
+  const getCartServicesForOrder = () => {
+    return Object.keys(cartItems)
+      .filter((id) => cartItems[id] > 0)
+      .map((id) => {
+        const info = service_list.find((s) => (s._id || s.id) === id);
+        return {
+          id,
+          name: info?.name || id,
+          category: info?.category || "",   // ← category now included
+          price: info?.price || 0,
+          quantity: cartItems[id],
+        };
+      });
   };
 
   const fetchServiceList = async () => {
@@ -67,9 +72,7 @@ const StoreContextProvider = (props) => {
 
   const loadCartData = async (token) => {
     const response = await axios.post(
-      url + "/api/cart/get",
-      {},
-      { headers: { token } }
+      url + "/api/cart/get", {}, { headers: { token } }
     );
     setCartItems(response.data.cartData);
   };
@@ -92,11 +95,13 @@ const StoreContextProvider = (props) => {
     addToCart,
     removeFromCart,
     getTotalCartAmount,
+    getCartServicesForOrder,   // ← export the new helper
     url,
     token,
     setToken,
     clearCart,
   };
+
   return (
     <StoreContext.Provider value={contextValue}>
       {props.children}
