@@ -39,7 +39,7 @@ const Navbar = () => {
         </a>
 
         <a
-          href="http://localhost:5174"
+          href="http://localhost:5175"
           className={menu === "Provider" ? "active" : ""}
           onClick={() => setMenu("Provider")}
         >
