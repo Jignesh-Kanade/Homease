@@ -67,6 +67,8 @@ const AuthPage = () => {
     }
   };
 
+
+
   const handleSignUp = async () => {
     if (!email || !password || !otp) {
       setError("Please fill all required fields");
