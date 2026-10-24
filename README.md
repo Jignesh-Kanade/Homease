@@ -12,10 +12,9 @@
 
 **A full-stack marketplace connecting customers with verified home service providers — featuring real-time order tracking, dual OTP verification, and live provider ratings.**
 
-[🌐 Customer App](https://homease-frontend.vercel.app) &nbsp;•&nbsp;
-[👷 Provider Portal](https://homease-provider.vercel.app) &nbsp;•&nbsp;
-[🛡️ Admin Panel](https://homease-admin.vercel.app) &nbsp;•&nbsp;
-[⚙️ Backend API](https://homease-backend.onrender.com)
+[🌐 Customer App](https://homease-production-ten.vercel.app/) &nbsp;•&nbsp;
+[👷 Provider Portal](https://homease-production-qicq.vercel.app/) &nbsp;•&nbsp;
+[🛡️ Admin Panel](https://homease-production-ytz4-kappa.vercel.app/) &nbsp;•&nbsp;
 
 </div>
 
@@ -100,7 +99,7 @@ The platform has **3 separate portals**:
      │                           │                           │
      │  3. Provider Accepts Job  │                           │
      │                           │──────────────────────────▶│
-     │◀── Email: Provider assigned + Start OTP ──────────────│
+     │◀──  Provider assigned + Start OTP ──────────────│
      │                           │    Status: provider_assigned
      │                           │                           │
      │  4. Provider On The Way   │                           │
@@ -116,7 +115,7 @@ The platform has **3 separate portals**:
      │  6. Work Done → Customer shares End OTP               │
      │  ─────────────────────────▶ Provider enters OTP       │
      │                           │──────────────────────────▶│
-     │◀── Email: Rate your provider ─────────────────────────│
+     │◀──  Rate your provider ─────────────────────────│
      │                           │    Status: service_completed
      │                           │                           │
      │  7. Customer Rates Provider (1-5 ⭐)                  │
@@ -384,40 +383,6 @@ Runs on `http://localhost:5173`
 
 All environment variables are injected at build/runtime — no secrets in source code.
 
----
-
-## 🗄️ Database Schema (Key Tables)
-
-```
-orders
-├── id, orderId, userId, email
-├── firstName, lastName, phone
-├── street, city, state, pincode
-├── amount, paymentId, paymentStatus
-├── serviceCategory              ← used for provider job matching
-├── trackingStatus               ← 6-stage status
-├── trackingHistory (TEXT/JSON)  ← full audit log
-├── otpServiceStart              ← shown to customer, provider enters
-├── otpServiceEnd                ← shown after start, confirms completion
-├── providerRating, ratingSubmitted
-└── provider_id (FK → providers)
-
-providers
-├── id, name, email, password (BCrypt)
-├── phone, category
-├── rating (auto-calculated average)
-├── isApproved (admin sets this)
-└── isOnline, token
-
-services
-├── id, name, image
-├── price, description
-└── category
-
-users
-├── id, email, password (BCrypt)
-└── token
-```
 
 ---
 
@@ -464,7 +429,7 @@ users
 ## 👨‍💻 Developer
 
 **Jignesh Kanade**
-Full-Stack Developer | CDAC Student
+Full-Stack Developer
 
 Built this project end-to-end — database design, REST APIs, 3 React frontends, payment integration, email notifications, Docker deployment.
 
