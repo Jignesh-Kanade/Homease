@@ -58,6 +58,8 @@ public class AuthService {
         mailSender.send(message);
     }
 
+
+
     public String signup(String email, String password, String otp) {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) {

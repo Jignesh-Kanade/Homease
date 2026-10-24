@@ -24,6 +24,9 @@ public class AuthController {
         }
     }
 
+
+
+
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody Map<String, String> payload) {
         String email = payload.get("email");
